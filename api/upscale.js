@@ -14,42 +14,49 @@ const replicate = new Replicate({
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).end("Method not allowed");
   }
 
   try {
-    const form = formidable();
-    const [, files] = await form.parse(req);
+    const form = formidable({ multiples: false });
 
-    const imageFile = files.image?.[0];
+    const { files, fields } = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) reject(err);
+        else resolve({ fields, files });
+      });
+    });
+
+    const imageFile = files.image;
     if (!imageFile) {
-      return res.status(400).json({ error: "No image uploaded" });
+      return res.status(400).end("No image uploaded");
     }
 
-    // 🔥 convert ke base64 (INI KUNCI)
+    const scale = Number(fields.scale) || 4;
+
     const buffer = fs.readFileSync(imageFile.filepath);
-    const base64Image = `data:image/png;base64,${buffer.toString("base64")}`;
+    const base64Image = `data:image/jpeg;base64,${buffer.toString("base64")}`;
 
     const output = await replicate.run(
       "cjwbw/real-esrgan",
       {
         input: {
           image: base64Image,
-          scale: 4
-        }
+          scale,
+        },
       }
     );
 
     const imageUrl = Array.isArray(output) ? output[0] : output;
 
-    const img = await fetch(imageUrl);
-    const resultBuffer = Buffer.from(await img.arrayBuffer());
+    const imgRes = await fetch(imageUrl);
+    const resultBuffer = Buffer.from(await imgRes.arrayBuffer());
 
     res.setHeader("Content-Type", "image/png");
-    res.send(resultBuffer);
+    res.status(200).send(resultBuffer);
 
   } catch (err) {
     console.error("UPSCALE ERROR:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).end("Gagal memproses gambar");
   }
 }
