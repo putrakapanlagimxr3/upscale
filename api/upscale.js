@@ -1,47 +1,54 @@
 import formidable from "formidable";
 import fs from "fs";
+import Replicate from "replicate";
 
 export const config = {
   api: {
     bodyParser: false,
+    sizeLimit: "10mb",
   },
 };
 
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN,
+});
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const form = formidable({
-    maxFileSize: 10 * 1024 * 1024,
-    keepExtensions: true,
-  });
+  try {
+    const form = formidable();
+    const [fields, files] = await form.parse(req);
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error("Form parse error:", err);
-      return res.status(500).json({ message: "Gagal upload file" });
-    }
-
-    // ⚠️ FIX UTAMA DI SINI
-    const imageFile = Array.isArray(files.image)
-      ? files.image[0]
-      : files.image;
+    const imageFile = files.image?.[0];
+    const scale = Number(fields.scale?.[0] || 4);
 
     if (!imageFile) {
-      return res.status(400).json({ message: "Image tidak ditemukan" });
+      return res.status(400).json({ error: "No image uploaded" });
     }
 
-    try {
-      const buffer = fs.readFileSync(imageFile.filepath);
+    const imageBuffer = fs.readFileSync(imageFile.filepath);
+    const base64Image = `data:image/png;base64,${imageBuffer.toString("base64")}`;
 
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Content-Disposition", "inline; filename=upscaled.png");
+    const output = await replicate.run(
+      "nightmareai/real-esrgan",
+      {
+        input: {
+          image: base64Image,
+          scale,
+        },
+      }
+    );
 
-      return res.status(200).send(buffer);
-    } catch (error) {
-      console.error("Processing error:", error);
-      return res.status(500).json({ message: "Gagal memproses gambar" });
-    }
-  });
+    const imageResponse = await fetch(output);
+    const imageBlob = await imageResponse.arrayBuffer();
+
+    res.setHeader("Content-Type", "image/png");
+    res.send(Buffer.from(imageBlob));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 }
