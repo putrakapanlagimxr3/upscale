@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   }
 
   const form = formidable({
-    maxFileSize: 10 * 1024 * 1024, // 10MB
+    maxFileSize: 10 * 1024 * 1024,
     keepExtensions: true,
   });
 
@@ -23,22 +23,20 @@ export default async function handler(req, res) {
       return res.status(500).json({ message: "Gagal upload file" });
     }
 
-    const image = files.image;
-    const scale = fields.scale || "4";
+    // ⚠️ FIX UTAMA DI SINI
+    const imageFile = Array.isArray(files.image)
+      ? files.image[0]
+      : files.image;
 
-    if (!image) {
+    if (!imageFile) {
       return res.status(400).json({ message: "Image tidak ditemukan" });
     }
 
     try {
-      // Dummy upscale: kirim balik image asli
-      const buffer = fs.readFileSync(image.filepath);
+      const buffer = fs.readFileSync(imageFile.filepath);
 
       res.setHeader("Content-Type", "image/png");
-      res.setHeader(
-        "Content-Disposition",
-        `inline; filename=upscaled_${scale}x.png`
-      );
+      res.setHeader("Content-Disposition", "inline; filename=upscaled.png");
 
       return res.status(200).send(buffer);
     } catch (error) {
