@@ -29,24 +29,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No image uploaded" });
     }
 
-    const imageBuffer = fs.readFileSync(imageFile.filepath);
-    const base64Image = `data:image/png;base64,${imageBuffer.toString("base64")}`;
-
+    // 🔥 KIRIM FILE LANGSUNG (BUKAN BASE64)
     const output = await replicate.run(
       "nightmareai/real-esrgan",
       {
         input: {
-          image: base64Image,
+          image: fs.createReadStream(imageFile.filepath),
           scale,
         },
       }
     );
 
-    const imageResponse = await fetch(output);
-    const imageBlob = await imageResponse.arrayBuffer();
+    const imageUrl = Array.isArray(output) ? output[0] : output;
+
+    const imageRes = await fetch(imageUrl);
+    const buffer = Buffer.from(await imageRes.arrayBuffer());
 
     res.setHeader("Content-Type", "image/png");
-    res.send(Buffer.from(imageBlob));
+    res.send(buffer);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
