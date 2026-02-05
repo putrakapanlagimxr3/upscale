@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import formidable from "formidable";
 import fs from "fs";
 import Replicate from "replicate";
@@ -29,7 +31,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No image uploaded" });
     }
 
-    // 🔥 KIRIM FILE LANGSUNG (BUKAN BASE64)
     const output = await replicate.run(
       "nightmareai/real-esrgan",
       {
@@ -42,14 +43,14 @@ export default async function handler(req, res) {
 
     const imageUrl = Array.isArray(output) ? output[0] : output;
 
-    const imageRes = await fetch(imageUrl);
-    const buffer = Buffer.from(await imageRes.arrayBuffer());
+    const imgRes = await fetch(imageUrl);
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
 
     res.setHeader("Content-Type", "image/png");
     res.send(buffer);
 
   } catch (err) {
-    console.error(err);
+    console.error("UPSCALE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 }
