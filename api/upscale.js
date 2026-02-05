@@ -5,10 +5,7 @@ import fs from "fs";
 import Replicate from "replicate";
 
 export const config = {
-  api: {
-    bodyParser: false,
-    sizeLimit: "10mb",
-  },
+  api: { bodyParser: false },
 };
 
 const replicate = new Replicate({
@@ -22,32 +19,34 @@ export default async function handler(req, res) {
 
   try {
     const form = formidable();
-    const [fields, files] = await form.parse(req);
+    const [, files] = await form.parse(req);
 
     const imageFile = files.image?.[0];
-    const scale = Number(fields.scale?.[0] || 4);
-
     if (!imageFile) {
       return res.status(400).json({ error: "No image uploaded" });
     }
 
+    // 🔥 convert ke base64 (INI KUNCI)
+    const buffer = fs.readFileSync(imageFile.filepath);
+    const base64Image = `data:image/png;base64,${buffer.toString("base64")}`;
+
     const output = await replicate.run(
-      "nightmareai/real-esrgan",
+      "cjwbw/real-esrgan",
       {
         input: {
-          image: fs.createReadStream(imageFile.filepath),
-          scale,
-        },
+          image: base64Image,
+          scale: 4
+        }
       }
     );
 
     const imageUrl = Array.isArray(output) ? output[0] : output;
 
-    const imgRes = await fetch(imageUrl);
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const img = await fetch(imageUrl);
+    const resultBuffer = Buffer.from(await img.arrayBuffer());
 
     res.setHeader("Content-Type", "image/png");
-    res.send(buffer);
+    res.send(resultBuffer);
 
   } catch (err) {
     console.error("UPSCALE ERROR:", err);
